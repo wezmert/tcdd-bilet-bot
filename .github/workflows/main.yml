@@ -1,23 +1,22 @@
-name: Telegram Bot
+name: Telegram TCDD Bot
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: "*/5 * * * *"
+  workflow_dispatch:
 
 jobs:
-  calistir:
+  run-bot:
     runs-on: ubuntu-latest
     steps:
-      - name: Kodu indir
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Python kur
+      - name: Python kurulumu
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.10'
 
-      - name: Gerekli paketleri yükle
+      - name: Gerekli paketler
         run: pip install requests
 
       - name: Botu çalıştır
