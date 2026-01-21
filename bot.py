@@ -76,7 +76,7 @@ def bilet_kontrol(tarih):
         telegram_mesaj("⚠️ Bot hata aldı! TCDD sayfa yapısı değişmiş olabilir, kontrol edilmeli.")
         return None
 
-if name == "main":
+if __name__ == "__main__":
     telegram_komut_kontrol()
 
     bugun = datetime.now().strftime("%Y-%m-%d")
