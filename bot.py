@@ -1,5 +1,6 @@
 import os
 import requests
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -26,39 +27,50 @@ def tarih_araligi(baslangic, bitis):
     gunler = []
     t = baslangic
     while t <= bitis:
-        gunler.append(t.strftime("%Y-%m-%d"))
+        gunler.append(t.strftime("%d.%m.%Y"))
         t += timedelta(days=1)
     return gunler
 
 def bilet_kontrol(tarih):
-    url = "https://api.tcddtasimacilik.gov.tr/availability"
-    payload = {
-        "departureStationId": "ANK",
-        "arrivalStationId": "TAT",
-        "departureDate": tarih,
-        "passengerCount": 4
+    url = "https://ebilet.tcddtasimacilik.gov.tr/view/available-trains"  # TCDD resmi bilet sayfası
+    params = {
+        "nereden": "ANK",    # Ankara
+        "nereye": "TAT",     # Tatvan
+        "tarih": tarih,
+        "yolcu": "4"
     }
-    r = requests.post(url, json=payload, timeout=15)
-    data = r.json()
-    for tren in data.get("trains", []):
-        for vagon in tren.get("wagons", []):
-            ad = vagon.get("name", "").lower()
-            bos = vagon.get("availableSeatCount", 0)
+    r = requests.get(url, params=params, timeout=15)
+    if r.status_code != 200:
+        return None
+
+    soup = BeautifulSoup(r.text, "html.parser")
+    # Bu örnek HTML parsing, sayfa değişirse güncellemek gerekir
+    trenler = soup.find_all("div", class_="train-card")
+    for tren in trenler:
+        numara = tren.find("span", class_="train-number").text.strip()
+        vagonlar = tren.find_all("div", class_="wagon")
+        for vagon in vagonlar:
+            ad = vagon.find("span", class_="wagon-type").text.lower()
+            bos = int(vagon.find("span", class_="available-seats").text.strip())
             if bos >= 4 and ("kuşet" in ad or "kuset" in ad or "yatak" in ad):
-                return tren.get("trainNumber"), tarih, vagon.get("name")
+                return numara, tarih, ad
     return None
 
-if __name__ == "__main__":
+if name == "main":
     telegram_komut_kontrol()
+
     bugun = datetime.now().strftime("%Y-%m-%d")
     dosya = "gunluk.txt"
     if not os.path.exists(dosya) or open(dosya).read().strip() != bugun:
         telegram_mesaj("✅ Bot çalışıyor, bilet kontrolü devam ediyor.")
         open(dosya, "w").write(bugun)
+
     if os.path.exists("bulundu.txt"):
         exit()
+
     baslangic = datetime(2026, 1, 22)
     bitis = datetime(2026, 2, 3)
+
     for tarih in tarih_araligi(baslangic, bitis):
         try:
             sonuc = bilet_kontrol(tarih)
@@ -70,5 +82,5 @@ if __name__ == "__main__":
                 open("bulundu.txt", "w").write("ok")
                 break
         except Exception:
-            telegram_mesaj("⚠️ Bot hata aldı! TCDD sistemi değişmiş olabilir.")
+            telegram_mesaj("⚠️ Bot hata aldı! TCDD HTML yapısı değişmiş olabilir.")
             break
