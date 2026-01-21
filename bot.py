@@ -13,7 +13,7 @@ def telegram_mesaj(mesaj):
     }
     requests.post(url, data=data)
 
-if name == "main":
+if __name__ == "__main__":
     telegram_mesaj("✅ Bot çalıştı. Bu test mesajıdır.")
     while True:
         time.sleep(300)
