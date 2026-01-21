@@ -1,26 +1,25 @@
+> Kafh:
 import os
 import time
 import json
 import requests
 from datetime import datetime, timedelta
 
-# Telegram bilgileri (GitHub Secrets'tan gelir)
+# Telegram bilgileri (GitHub Secrets)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID"))
 
-# Kontrol dosyaları
+# Dosyalar
 BULUNDU_DOSYA = "bulundu.txt"
 HATA_DOSYA = "hata.txt"
 DURUM_DOSYA = "durum.json"
+UPDATE_DOSYA = "update_id.txt"
 
 
 def telegram_mesaj(mesaj):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {
-        "chat_id": CHAT_ID,
-        "text": mesaj
-    }
-    requests.post(url, data=data)
+    data = {"chat_id": CHAT_ID, "text": mesaj}
+    requests.post(url, data=data, timeout=10)
 
 
 def durum_yukle():
@@ -35,12 +34,46 @@ def durum_kaydet(durum):
         json.dump(durum, f)
 
 
+def son_update_id_yukle():
+    if os.path.exists(UPDATE_DOSYA):
+        return int(open(UPDATE_DOSYA).read().strip())
+    return 0
+
+
+def son_update_id_kaydet(uid):
+    with open(UPDATE_DOSYA, "w") as f:
+        f.write(str(uid))
+
+
+def telegram_komut_kontrol():
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates"
+    params = {"offset": son_update_id_yukle() + 1}
+    r = requests.get(url, params=params, timeout=10).json()
+
+    for upd in r.get("result", []):
+        uid = upd["update_id"]
+        son_update_id_kaydet(uid)
+
+        msg = upd.get("message", {})
+        if not msg:
+            continue
+
+        chat_id = msg["chat"]["id"]
+        if chat_id != CHAT_ID:
+            continue
+
+        text = msg.get("text", "").lower()
+
+        if "çalışıyor" in text or "calisiyor" in text:
+            telegram_mesaj("🤖 Evet, buradayım. Bot çalışıyor ve bilet arıyorum.")
+
+
 def tarih_araligi(baslangic, bitis):
     gunler = []
-    tarih = baslangic
-    while tarih <= bitis:
-        gunler.append(tarih.strftime("%Y-%m-%d"))
-        tarih += timedelta(days=1)
+    t = baslangic
+    while t <= bitis:
+        gunler.append(t.strftime("%Y-%m-%d"))
+        t += timedelta(days=1)
     return gunler
 
 
@@ -61,7 +94,7 @@ def bilet_kontrol(tarih):
             ad = vagon.get("name", "").lower()
             bos = vagon.get("availableSeatCount", 0)
 
-            if bos >= 4 and ("kuşet" in ad or "yatak" in ad):
+            if bos >= 4 and ("kuşet" in ad or "kuset" in ad or "yatak" in ad):
                 return tren.get("trainNumber"), tarih, vagon.get("name")
 
     return None
@@ -69,19 +102,19 @@ def bilet_kontrol(tarih):
 
 if name == "main":
 
-    # Eğer bilet bulunduysa tamamen dur
+    # Bilet bulunduysa tamamen dur
     if os.path.exists(BULUNDU_DOSYA):
         exit()
 
     durum = durum_yukle()
     bugun = datetime.now().strftime("%Y-%m-%d")
 
-    # İlk çalışma mesajı (1 kere)
+    # İlk başlama mesajı
     if not durum.get("basladi"):
         telegram_mesaj("🤖 TCDD bilet botu aktif. Kontroller başladı.")
         durum["basladi"] = True
 
-    # Günlük sağlık mesajı (günde 1 kere)
+    # Günlük sağlık mesajı
     if durum.get("son_gunluk_mesaj") != bugun:
         telegram_mesaj("✅ Bot çalışıyor, hâlâ bilet arıyorum.")
         durum["son_gunluk_mesaj"] = bugun
@@ -92,12 +125,15 @@ if name == "main":
     bitis = datetime(2026, 2, 3)
 
     while True:
+        # Telegram'dan "çalışıyor musun" kontrolü
+        telegram_komut_kontrol()
+
         for tarih in tarih_araligi(baslangic, bitis):
             try:
                 sonuc = bilet_kontrol(tarih)
                 if sonuc:
                     tren, gun, vagon = sonuc
-                    mesaj = (
+                    telegram_mesaj(
                         "🎉 BİLET BULUNDU!\n\n"
                         "📍 Ankara → Tatvan\n"
                         f"📅 Tarih: {gun}\n"
@@ -105,15 +141,12 @@ if name == "main":
                         f"🛏️ Vagon: {vagon}\n"
                         "👥 Kişi: 4"
                     )
-                    telegram_mesaj(mesaj)
-                    with open(BULUNDU_DOSYA, "w") as f:
-                        f.write("bulundu")
+                    open(BULUNDU_DOSYA, "w").write("ok")
                     exit()
 
-            except Exception:
+except Exception:
                 if not os.path.exists(HATA_DOSYA):
                     telegram_mesaj("⚠️ Bot hata aldı! TCDD sistemi değişmiş olabilir.")
-                    with open(HATA_DOSYA, "w") as f:
-                        f.write("hata")
+                    open(HATA_DOSYA, "w").write("hata")
 
         time.sleep(300)
