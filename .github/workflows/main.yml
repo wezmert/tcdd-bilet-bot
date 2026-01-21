@@ -11,16 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Python kurulumu
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Gerekli paketler
-        run: pip install requests
+      - run: pip install requests
 
-      - name: Botu çalıştır
+      - run: python bot.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python bot.py
