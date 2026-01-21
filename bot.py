@@ -48,7 +48,7 @@ def bilet_kontrol(tarih):
                 return tren.get("trainNumber"), tarih, vagon.get("name")
     return None
 
-if name == "main":
+if __name__ == "__main__":
     telegram_komut_kontrol()
     bugun = datetime.now().strftime("%Y-%m-%d")
     dosya = "gunluk.txt"
